@@ -1,6 +1,8 @@
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Text, View, SafeAreaView } from "react-native";
 import Header from "./components/Header";
+import BottomTabBar from "./components/BottomTabBar";
+import { NavigationContainer } from "@react-navigation/native";
 
 export default function App() {
   return (
@@ -8,6 +10,13 @@ export default function App() {
       <StatusBar style={styles.statusBar} />
       <View style={styles.container}>
         <Header />
+        <NavigationContainer
+          style={{
+            backgroundColor: "#040F15",
+          }}
+        >
+          <BottomTabBar />
+        </NavigationContainer>
       </View>
     </SafeAreaView>
   );
