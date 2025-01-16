@@ -3,8 +3,10 @@ import { StyleSheet, View, Image, Text, TouchableOpacity } from "react-native";
 import Logo from "../assets/icon.png";
 import { Ionicons } from "@expo/vector-icons";
 import GlobalStyles from "./GlobalStyles";
+import { useSelector } from "react-redux";
 
 const Header = ({ navigation }) => {
+  const isLoggedIn = useSelector((state) => state.user.isLoggedIn);
   return (
     <View style={styles.header}>
       <View style={styles.logoSection}>
@@ -15,13 +17,15 @@ const Header = ({ navigation }) => {
         />
         <Text style={styles.logoText}>AyuAi</Text>
       </View>
-      <TouchableOpacity
-        style={styles.login}
-        onPress={() => navigation.navigate("Login")}
-      >
-        <Ionicons name="log-in-outline" size={24} color="#32CA9A" />
-        <Text style={GlobalStyles.primaryText}>Log In</Text>
-      </TouchableOpacity>
+      {!isLoggedIn && (
+        <TouchableOpacity
+          style={styles.login}
+          onPress={() => navigation.navigate("Login")}
+        >
+          <Ionicons name="log-in-outline" size={24} color="#32CA9A" />
+          <Text style={GlobalStyles.primaryText}>Log In</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };

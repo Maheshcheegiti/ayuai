@@ -5,38 +5,64 @@ import BottomTabBar from "./components/BottomTabBar";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import LoginScreen from "./screens/LoginScreen";
+import OtpScreen from "./screens/OtpScreen";
+import SuperTokens from "supertokens-react-native";
+import store from "./store";
+import { Provider } from "react-redux";
+
+SuperTokens.init({
+  apiDomain: process.env.EXPO_PUBLIC_API_URL,
+  apiBasePath: "/auth",
+});
 
 const Stack = createStackNavigator();
 
 export default function App() {
   return (
-    <SafeAreaView style={styles.safeAreaView}>
-      <StatusBar style={styles.statusBar} />
-      <NavigationContainer>
-        <Stack.Navigator>
-          <Stack.Screen
-            name="Home"
-            component={MainScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{
-              title: "Log In",
-              headerStyle: {
-                backgroundColor: "#040F15",
-              },
-              headerTintColor: "#32CA9A",
-              headerTitleStyle: {
-                fontWeight: "bold",
-              },
-              animation: "slide_from_right",
-            }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaView>
+    <Provider store={store}>
+      <SafeAreaView style={styles.safeAreaView}>
+        <StatusBar style={styles.statusBar} />
+        <NavigationContainer>
+          <Stack.Navigator>
+            <Stack.Screen
+              name="Home"
+              component={MainScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{
+                title: "Log In",
+                headerStyle: {
+                  backgroundColor: "#040F15",
+                },
+                headerTintColor: "#32CA9A",
+                headerTitleStyle: {
+                  fontWeight: "bold",
+                },
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="Otp"
+              component={OtpScreen}
+              options={{
+                title: "OTP Verification",
+                headerStyle: {
+                  backgroundColor: "#040F15",
+                },
+                headerTintColor: "#32CA9A",
+                headerTitleStyle: {
+                  fontWeight: "bold",
+                },
+                animation: "slide_from_right",
+              }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaView>
+    </Provider>
   );
 }
 

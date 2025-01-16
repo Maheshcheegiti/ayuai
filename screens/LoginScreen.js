@@ -6,12 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import YogaImage from "../assets/images/yoga.png";
 import { CountryPicker } from "react-native-country-codes-picker";
 import GlobalStyles from "../components/GlobalStyles";
+import AlertBar from "../components/AlertBar";
+import { api } from "../api";
+import endpoints from "../api/endpoint";
 
-const LoginScreen = () => {
+const LoginScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [showPicker, setShowPicker] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState({
@@ -19,20 +23,64 @@ const LoginScreen = () => {
     dial_code: "+91",
     code: "IN",
   });
+  const [loading, setLoading] = useState(false);
+  const [alert, setAlert] = useState(null);
 
   const handleSendOTP = async () => {
     if (phoneNumber.trim().length === 10) {
-      console.log(`${selectedCountry.dial_code}${phoneNumber}`);
-      alert(`OTP sent to ${selectedCountry.dial_code} ${phoneNumber}`);
+      const phone = `${selectedCountry.dial_code}${phoneNumber}`; // Combine the country code and phone number
+      console.log(phone);
+      setLoading(true);
+      try {
+        // Make the POST request to the API
+        const response = await api(endpoints.AUTH_OTP, "POST", {
+          phoneNumber: phone,
+        });
+        const responseData = response.data;
+        if (response.status === 200) {
+          console.log("OTP sent successfully");
+          setLoading(false);
+          setAlert(null);
+          // Navigate to the OTP screen with the phone number
+          navigation.navigate("Otp", {
+            countryCode: selectedCountry.dial_code,
+            phoneNumber: phoneNumber,
+            deviceId: responseData.deviceId,
+            preAuthSessionId: responseData.preAuthSessionId,
+          });
+        } else {
+          console.log("response", response);
+          setLoading(false);
+          setAlert({
+            type: "error",
+            message: "Failed to send OTP. Please try again.",
+          });
+        }
+      } catch (error) {
+        console.error("Error:", error); // Log any errors
+        setLoading(false);
+        setAlert({
+          type: "error",
+          message: "An error occurred while sending the OTP. Please try again.",
+        });
+      }
     } else {
-      alert("Please enter a valid 10-digit mobile number.");
+      setAlert({
+        type: "error",
+        message: "Please enter a valid 10-digit mobile number.",
+      });
     }
   };
 
   return (
     <View style={styles.container}>
       {/* Logo */}
-      <Image source={YogaImage} style={styles.image} resizeMode="contain" />
+      <Image
+        source={YogaImage}
+        style={styles.image}
+        resizeMode="contain"
+        AccessibilityLabel="Yoga Image"
+      />
 
       {/* Title */}
       <Text style={GlobalStyles.primaryHeading}>Enter Your Mobile Number</Text>
@@ -41,6 +89,16 @@ const LoginScreen = () => {
       <Text style={GlobalStyles.primaryText}>
         Select your country code and enter your phone number.
       </Text>
+
+      {alert && (
+        <AlertBar
+          type={alert.type}
+          message={alert.message}
+          style={{
+            marginTop: 20,
+          }}
+        />
+      )}
 
       {/* Phone Input */}
       <View style={styles.phoneInputContainer}>
@@ -65,9 +123,13 @@ const LoginScreen = () => {
       </View>
 
       {/* Send OTP Button */}
-      <TouchableOpacity style={GlobalStyles.button} onPress={handleSendOTP}>
-        <Text style={GlobalStyles.buttonText}>Send OTP</Text>
-      </TouchableOpacity>
+      {loading ? (
+        <ActivityIndicator size="large" color="#32CA9A" />
+      ) : (
+        <TouchableOpacity style={GlobalStyles.button} onPress={handleSendOTP}>
+          <Text style={GlobalStyles.buttonText}>Send OTP</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Country Picker Modal */}
       <CountryPicker
