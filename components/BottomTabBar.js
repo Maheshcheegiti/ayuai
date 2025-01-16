@@ -131,10 +131,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     position: "absolute",
     marginHorizontal: 10,
-    shadowColor: "#32CA9A",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 5,
     borderTopWidth: 0,
   },
   tabButton: {
