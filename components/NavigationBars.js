@@ -10,7 +10,10 @@ const NavigationBars = ({ navigationsData, style }) => {
         <TouchableOpacity
           key={index}
           onPress={item.onPress}
-          style={styles.navigationContainer}
+          style={[
+            styles.navigationContainer,
+            index === navigationsData.length - 1 && { borderBottomWidth: 0 },
+          ]}
         >
           <View style={styles.navigationInnerContainer}>
             <Ionicons name={item.icon} size={20} color="#32CA9A" />

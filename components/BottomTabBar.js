@@ -23,7 +23,7 @@ const tabBar = [
     icon: "restaurant",
   },
   {
-    name: "Chat",
+    name: "AyuAi",
     component: ChatScreen,
     iconType: "custom",
     customIcon: require("../assets/chat-icon.png"),
@@ -104,7 +104,7 @@ const BottomTabBar = () => {
         headerShown: false,
         tabBarStyle: styles.tabBar,
       }}
-      initialRouteName="Chat"
+      initialRouteName="AyuAi"
     >
       {tabBar.map((tab, index) => (
         <Tab.Screen

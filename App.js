@@ -7,6 +7,7 @@ import { createStackNavigator } from "@react-navigation/stack";
 import LoginScreen from "./screens/LoginScreen";
 import OtpScreen from "./screens/OtpScreen";
 import EditProfile from "./screens/EditProfile";
+import ConversationScreen from "./screens/ConversationScreen";
 import SuperTokens from "supertokens-react-native";
 import store from "./store";
 import { Provider } from "react-redux";
@@ -65,6 +66,21 @@ export default function App() {
               component={EditProfile}
               options={{
                 title: "Edit Profile",
+                headerStyle: {
+                  backgroundColor: "#040F15",
+                },
+                headerTintColor: "#32CA9A",
+                headerTitleStyle: {
+                  fontWeight: "bold",
+                },
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="Conversation"
+              component={ConversationScreen}
+              options={{
+                title: "Conversation",
                 headerStyle: {
                   backgroundColor: "#040F15",
                 },

@@ -169,7 +169,7 @@ const ProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   profileContainer: {
     flex: 1,
-    padding: 10,
+    padding: 15,
   },
   profileInnerContainer: {
     flexDirection: "row",

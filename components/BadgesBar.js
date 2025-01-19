@@ -56,7 +56,7 @@ const BadgesBar = () => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 15,
+    paddingVertical: 15,
     backgroundColor: "#040F15",
   },
   header: {
@@ -81,7 +81,8 @@ const styles = StyleSheet.create({
   },
   badgeScroll: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 });
 

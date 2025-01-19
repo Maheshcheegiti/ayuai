@@ -61,6 +61,15 @@ const GlobalStyles = StyleSheet.create({
     width: 70,
     filter: "grayscale(100%)",
   },
+  noDataContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  noDataText: {
+    color: "#FFFFFF55",
+    fontSize: 18,
+  },
 });
 
 export default GlobalStyles;
