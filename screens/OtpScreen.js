@@ -192,6 +192,7 @@ const OtpScreen = ({ route, navigation }) => {
               autoFocus={index === 0}
               returnKeyType="next"
               blurOnSubmit={false}
+              cursorColor={"#32CA9A"}
               onKeyPress={({ nativeEvent }) => {
                 if (nativeEvent.key === "Backspace") {
                   handleBackspace(index);

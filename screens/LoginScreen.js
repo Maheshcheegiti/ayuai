@@ -119,6 +119,7 @@ const LoginScreen = ({ navigation }) => {
           value={phoneNumber}
           onChangeText={setPhoneNumber}
           maxLength={10}
+          cursorColor={"#32CA9A"}
         />
       </View>
 

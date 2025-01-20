@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -68,20 +68,38 @@ const ChatScreen = ({ navigation }) => {
 
   // const historyData = [];
 
-  const handleChat = () => {
-    navigation.navigate("Conversation");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleChat = (title = "New Conversation") => {
+    if (typeof title !== "string") {
+      title = "New Conversation";
+    }
+
+    navigation.navigate("Conversation", {
+      title: title,
+    });
   };
 
   const renderHistoryItem = ({ item }) => {
     return (
-      <TouchableOpacity style={style.historyItem} onPress={handleChat}>
+      <TouchableOpacity
+        style={style.historyItem}
+        onPress={() => {
+          handleChat(item.title);
+        }}
+      >
         <View style={style.historyIconContainer}>
           <Ionicons name={item.iconName} size={24} color="#FFFFFFCC" />
         </View>
         <Text style={style.historyTitle} numberOfLines={1}>
           {item.title}
         </Text>
-        <TouchableOpacity style={style.arrowContainer} onPress={handleChat}>
+        <TouchableOpacity
+          style={style.arrowContainer}
+          onPress={() => {
+            handleChat(item.title);
+          }}
+        >
           <Ionicons name="arrow-forward" size={24} color="#FFFFFFCC" />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -93,6 +111,14 @@ const ChatScreen = ({ navigation }) => {
       <Text style={GlobalStyles.noDataText}>No History Available</Text>
     </View>
   );
+
+  const onRefresh = () => {
+    // Refresh
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
 
   return (
     <View style={[GlobalStyles.container, style.chatContainer]}>
@@ -116,6 +142,8 @@ const ChatScreen = ({ navigation }) => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={style.historyListContainer}
         ListEmptyComponent={noHistoryComponent}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
     </View>
   );
