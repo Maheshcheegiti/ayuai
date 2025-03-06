@@ -15,6 +15,7 @@ import { api } from "../api";
 import endpoints from "../api/endpoint";
 import { setUserInfo } from "../store/slices/userSlice";
 import { useDispatch } from "react-redux";
+import SuperTokens from "supertokens-react-native";
 
 const OtpScreen = ({ route, navigation }) => {
   const { countryCode, phoneNumber, deviceId, preAuthSessionId } = route.params;
@@ -25,6 +26,16 @@ const OtpScreen = ({ route, navigation }) => {
   const [resendTimer, setResendTimer] = useState(60);
   const [alert, setAlert] = useState(null);
   const dispatch = useDispatch();
+
+  async function getJWT() {
+    if (await SuperTokens.doesSessionExist()) {
+      let userId = await SuperTokens.getUserId();
+      let jwt = await SuperTokens.getAccessToken();
+
+      console.log("User ID:", userId);
+      console.log("JWT:", jwt);
+    }
+  }
 
   const handleVerifyOTP = async () => {
     const otpString = otp.join("");
@@ -44,9 +55,15 @@ const OtpScreen = ({ route, navigation }) => {
           setLoading(false);
           setAlert(null);
           console.log("User data:", responseData);
+
+          getJWT();
+
           dispatch(setUserInfo(responseData));
-          // Navigate to another screen upon successful verification
-          navigation.navigate("Home");
+          if (responseData.createdNewRecipeUser) {
+            navigation.navigate("EditProfile", { newUser: true });
+          } else {
+            navigation.navigate("Home");
+          }
         } else {
           setLoading(false);
           setAlert({

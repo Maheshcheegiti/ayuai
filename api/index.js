@@ -9,6 +9,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
  * @param {object} headers - Additional headers (optional)
  * @returns {Promise<object>} - Parsed response from the server
  */
+
 export const api = async (
   endpoint,
   method = "GET",
@@ -31,13 +32,37 @@ export const api = async (
 
   try {
     const response = await fetch(url, options);
+    let responseData;
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "API request failed");
+    try {
+      responseData = await response.json();
+    } catch (jsonError) {
+      console.error("Failed to parse JSON:", jsonError);
+      responseData = null;
     }
 
-    const responseData = await response.json();
+    if (!response.ok) {
+      console.error("API Error:", JSON.stringify(responseData, null, 2));
+
+      let errorMessage = "Unknown error occurred";
+
+      if (Array.isArray(responseData?.detail)) {
+        errorMessage = responseData.detail
+          .map((err) =>
+            err.loc ? `${err.loc.join(".")}: ${err.msg}` : err.msg
+          )
+          .join(", ");
+      } else if (typeof responseData?.detail === "string") {
+        errorMessage = responseData.detail;
+      } else if (responseData?.message) {
+        errorMessage = responseData.message;
+      } else {
+        errorMessage = `HTTP error! status: ${response.status}`;
+      }
+
+      throw new Error(errorMessage);
+    }
+
     return {
       status: response.status,
       data: responseData,
