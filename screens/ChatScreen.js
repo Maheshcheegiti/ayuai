@@ -1,82 +1,59 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
   Text,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import GlobalStyles from "../components/GlobalStyles";
 import PremiumPlanBanner from "../components/PremiumPlanBanner";
 import IconButtons from "../components/IconButtons";
 import { Ionicons } from "@expo/vector-icons";
+import { api } from "../api";
+import endpoints from "../api/endpoint";
 
 const ChatScreen = ({ navigation }) => {
-  // Sample data for history
-  const historyData = [
-    {
-      id: "1",
-      iconName: "chatbubble-ellipses-outline",
-      title: "About my health and diet plan for a week",
-    },
-    {
-      id: "2",
-      iconName: "document-text-outline",
-      title: "Generate Health Report and Export",
-    },
-    {
-      id: "3",
-      iconName: "chatbubble-ellipses-outline",
-      title: "Consultation on stress management techniques",
-    },
-    {
-      id: "4",
-      iconName: "document-text-outline",
-      title: "Tracking daily calories intake",
-    },
-    {
-      id: "5",
-      iconName: "chatbubble-ellipses-outline",
-      title: "Understanding sleep patterns for better health",
-    },
-    {
-      id: "6",
-      iconName: "document-text-outline",
-      title: "How to manage mental health during work hours",
-    },
-    {
-      id: "7",
-      iconName: "chatbubble-ellipses-outline",
-      title: "Consultation on improving fitness with running",
-    },
-    {
-      id: "8",
-      iconName: "document-text-outline",
-      title: "Generate health insights report for last month",
-    },
-    {
-      id: "9",
-      iconName: "chatbubble-ellipses-outline",
-      title: "Healthy meal plan for vegetarians this week",
-    },
-    {
-      id: "10",
-      iconName: "document-text-outline",
-      title: "Tracking progress of my fitness goals",
-    },
-  ];
-
-  // const historyData = [];
-
+  const [historyData, setHistoryData] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleChat = (title = "New Conversation") => {
+  const fetchHistoryData = async () => {
+    try {
+      setLoading(true);
+      const response = await api(endpoints.CHAT_HISTORY, "GET");
+      console.log("History Data: ", response.data);
+
+      const formattedHistory = response.data.map((chat) => ({
+        id: chat.chat_id,
+        iconName: chat.chat_title.startsWith("Generate")
+          ? "document-text-outline"
+          : "chatbubble-ellipses-outline",
+        title: chat.chat_title,
+      }));
+
+      setHistoryData(formattedHistory);
+    } catch (error) {
+      console.error("Failed to fetch chat history:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistoryData();
+  }, []);
+
+  const handleChat = (title = "New Conversation", chatId = null) => {
     if (typeof title !== "string") {
       title = "New Conversation";
     }
 
     navigation.navigate("Conversation", {
       title: title,
+      chatId: chatId,
+      superTokensId: "user-super-tokens-id", // Replace with actual superTokensId
     });
   };
 
@@ -85,7 +62,7 @@ const ChatScreen = ({ navigation }) => {
       <TouchableOpacity
         style={style.historyItem}
         onPress={() => {
-          handleChat(item.title);
+          handleChat(item.title, item.id);
         }}
       >
         <View style={style.historyIconContainer}>
@@ -97,7 +74,7 @@ const ChatScreen = ({ navigation }) => {
         <TouchableOpacity
           style={style.arrowContainer}
           onPress={() => {
-            handleChat(item.title);
+            handleChat(item.title, item.id);
           }}
         >
           <Ionicons name="arrow-forward" size={24} color="#FFFFFFCC" />
@@ -112,12 +89,10 @@ const ChatScreen = ({ navigation }) => {
     </View>
   );
 
-  const onRefresh = () => {
-    // Refresh
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await fetchHistoryData();
+    setRefreshing(false);
   };
 
   return (
@@ -136,15 +111,19 @@ const ChatScreen = ({ navigation }) => {
         />
       </View>
       <Text style={GlobalStyles.primaryHeading}>History</Text>
-      <FlatList
-        data={historyData}
-        renderItem={renderHistoryItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={style.historyListContainer}
-        ListEmptyComponent={noHistoryComponent}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-      />
+      {loading ? (
+        <ActivityIndicator size="large" color="#32CA9A" />
+      ) : (
+        <FlatList
+          data={historyData}
+          renderItem={renderHistoryItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={style.historyListContainer}
+          ListEmptyComponent={noHistoryComponent}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
+      )}
     </View>
   );
 };

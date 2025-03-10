@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState } from "react";
+import React, { useLayoutEffect, useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -9,54 +9,78 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Image,
+  ActivityIndicator,
 } from "react-native";
 import GlobalStyles from "../components/GlobalStyles";
 import { Ionicons } from "@expo/vector-icons";
-import LogoIcon from "../assets/icon.png";
+import { api } from "../api";
+import endpoints from "../api/endpoint";
+import { getUserID } from "../utils";
+import { InteractionManager } from "react-native";
 
 const ConversationScreen = ({ navigation, route }) => {
-  const { title } = route.params;
-  const [isNewConversation, setIsNewConversation] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      sender: "AyuAi",
-      text: "Hello! How can I help with your health and diet plan?",
-      timestamp: "10:00 AM",
-      liked: false,
-      disliked: false,
-    },
-    {
-      id: "2",
-      sender: "User",
-      text: "Can you suggest a healthy meal plan for this week?",
-      timestamp: "10:05 AM",
-      liked: false,
-      disliked: false,
-    },
-    {
-      id: "3",
-      sender: "AyuAi",
-      text: "Sure! A balanced meal would include...",
-      timestamp: "10:10 AM",
-      liked: false,
-      disliked: false,
-    },
-  ]);
+  const flatListRef = useRef(null);
+  const { title, chatId } = route.params;
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Fetch chat history when the screen loads
+  // In fetchChatHistory function
+  const fetchChatHistory = async () => {
+    try {
+      setLoading(true);
+      if (chatId) {
+        const response = await api(`${endpoints.CHAT}/${chatId}`, "POST", {
+          chat_id: chatId,
+        });
+
+        // Extract messages properly (adjust based on actual API response)
+        const chatData = response.data;
+        const chatHistory = Array.isArray(chatData)
+          ? chatData
+          : chatData?.chat_history || [];
+
+        // Transform messages to match required format
+        const formattedMessages = chatHistory.map((msg) => ({
+          id: msg.id || msg._id,
+          sender: msg.role === "user" ? "User" : "AyuAi",
+          text: msg.message || msg.content || msg.text, // Handle different field names
+          timestamp: new Date(msg.timestamp).toLocaleTimeString() || "Now",
+        }));
+
+        setMessages(formattedMessages);
+      } else {
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error("Fetch error:", error);
+      Alert.alert("Error", "Failed to load chat history");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchChatHistory();
+  }, [chatId]);
+
+  const scrollToBottom = () => {
+    InteractionManager.runAfterInteractions(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    });
+  };
+
+  // Set screen title
   useLayoutEffect(() => {
     navigation.setOptions({
       title: title,
     });
-
-    if (title === "New Conversation") {
-      setIsNewConversation(true);
-    }
   }, [navigation, title]);
 
+  // Handle long press on messages
   const handleLongPress = (messageId, sender) => {
     const options =
       sender === "AyuAi"
@@ -72,6 +96,7 @@ const ConversationScreen = ({ navigation, route }) => {
     );
   };
 
+  // Handle message options (edit, copy, delete)
   const handleOption = (option, messageId) => {
     switch (option) {
       case "Edit":
@@ -90,47 +115,73 @@ const ConversationScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleLike = (messageId) => {
-    setMessages(
-      messages.map((msg) =>
-        msg.id === messageId ? { ...msg, liked: !msg.liked } : msg
-      )
-    );
-  };
+  // Handle sending a new message
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
 
-  const handleDislike = (messageId) => {
-    setMessages(
-      messages.map((msg) =>
-        msg.id === messageId ? { ...msg, disliked: !msg.disliked } : msg
-      )
-    );
-  };
+    setSending(true);
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      sender: "User",
+      text: newMessage.trim(),
+      timestamp: new Date().toLocaleTimeString(),
+    };
 
-  const handleSendMessage = () => {
-    if (newMessage.trim()) {
-      const newMsg = {
-        id: String(messages.length + 1),
-        sender: "User",
-        text: newMessage,
-        timestamp: new Date().toLocaleTimeString(),
-        liked: false,
-        disliked: false,
+    // Optimistically update UI
+    setMessages((prev) => [...prev, userMessage]);
+    setNewMessage("");
+
+    try {
+      const superTokensId = await getUserID();
+      const chatPayload = {
+        chat_message: { role: "user", message: newMessage.trim() },
+        super_tokens_id: superTokensId,
+        newchat: !chatId,
+        chatId,
+        chat_title: title,
       };
-      setMessages([...messages, newMsg]);
-      setNewMessage("");
+
+      // Save message to backend
+      const saveResponse = await api(endpoints.CHAT, "POST", chatPayload);
+      const currentChatId = saveResponse.data.chat_id || chatId;
+
+      // Get AI response
+      const llmResponse = await api(endpoints.GET_LLM_RESPONSE, "POST", {
+        question: newMessage.trim(),
+        super_tokens_id: superTokensId,
+        chat_id: currentChatId,
+      });
+
+      const aiMessage = {
+        id: `ai-${Date.now()}`,
+        sender: "AyuAi",
+        text: llmResponse.data.response.trim(),
+        timestamp: new Date().toLocaleTimeString(),
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+
+      // save AI response to backend
+      await api(endpoints.CHAT, "POST", {
+        chat_message: { role: "assistant", message: llmResponse.data.response },
+        super_tokens_id: superTokensId,
+        chatId: currentChatId,
+        chat_title: title,
+      });
+    } catch (error) {
+      console.error("Message error:", error);
+      Alert.alert("Error", "Failed to send message");
+      // Rollback optimistic update on error
+      setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id));
+    } finally {
+      setSending(false);
+      scrollToBottom(); // Improved scroll call
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
-  };
-
+  // Render each chat message
   const renderItem = ({ item }) => (
     <View
-      key={item.id}
       style={[
         styles.messageContainer,
         item.sender === "AyuAi" ? styles.ayuaiMessage : styles.userMessage,
@@ -145,48 +196,41 @@ const ConversationScreen = ({ navigation, route }) => {
       >
         <Text style={styles.messageText}>{item.text}</Text>
         <Text style={styles.timestamp}>{item.timestamp}</Text>
-        {/* <View style={styles.reactions}>
-          <Pressable onPress={() => handleLike(item.id)}>
-            <Ionicons
-              name={item.liked ? "thumbs-up" : "thumbs-up-outline"}
-              size={24}
-              color="#32CA9A"
-            />
-          </Pressable>
-          <Pressable onPress={() => handleDislike(item.id)}>
-            <Ionicons
-              name={item.disliked ? "thumbs-down" : "thumbs-down-outline"}
-              size={24}
-              color="#32CA9A"
-            />
-          </Pressable>
-        </View> */}
       </Pressable>
     </View>
   );
 
   return (
     <View style={[GlobalStyles.container, styles.container]}>
-      <FlatList
-        data={messages}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.conversationContainer}
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-      />
-
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#32CA9A" />
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => index.toString()}
+          contentContainerStyle={styles.conversationContainer}
+          refreshing={refreshing}
+          onRefresh={fetchChatHistory}
+          ListFooterComponent={<View style={{ height: 20 }} />}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+        />
+      )}
       {/* Input and action buttons */}
+      {/* Input area */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.inputContainer}
       >
-        {/* File Attachment Button */}
         <Pressable onPress={() => {}} style={styles.actionButton}>
           <Ionicons name="attach-outline" size={24} color="#32CA9A" />
         </Pressable>
 
-        {/* Text Input with Mic Inside */}
         <View style={styles.textInputContainer}>
           <TextInput
             style={styles.textInput}
@@ -196,15 +240,27 @@ const ConversationScreen = ({ navigation, route }) => {
             placeholderTextColor="#aaa"
             multiline
             cursorColor={"#32CA9A"}
+            editable={!sending}
           />
-          <Pressable onPress={() => {}} style={styles.micButton}>
+          <Pressable
+            onPress={() => {}}
+            style={[styles.micButton, sending && { opacity: 0.5 }]}
+            disabled={sending}
+          >
             <Ionicons name="mic-outline" size={24} color="#32CA9A" />
           </Pressable>
         </View>
 
-        {/* Send Button */}
-        <Pressable onPress={handleSendMessage} style={styles.actionButton}>
-          <Ionicons name="send-outline" size={24} color="#32CA9A" />
+        <Pressable
+          onPress={handleSendMessage}
+          style={styles.actionButton}
+          disabled={sending}
+        >
+          {sending ? (
+            <ActivityIndicator size="small" color="#32CA9A" />
+          ) : (
+            <Ionicons name="send-outline" size={24} color="#32CA9A" />
+          )}
         </Pressable>
       </KeyboardAvoidingView>
     </View>
@@ -214,6 +270,11 @@ const ConversationScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     padding: 15,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   conversationContainer: {
     paddingBottom: 20,
@@ -227,9 +288,6 @@ const styles = StyleSheet.create({
   },
   userMessage: {
     justifyContent: "flex-end",
-  },
-  profileContainer: {
-    marginRight: 10,
   },
   messageBubble: {
     borderRadius: 10,
@@ -257,16 +315,11 @@ const styles = StyleSheet.create({
     marginTop: 5,
     alignSelf: "flex-end",
   },
-  reactions: {
-    flexDirection: "row",
-    marginTop: 5,
-  },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     paddingTop: 10,
   },
-
   textInputContainer: {
     flex: 1,
     flexDirection: "row",
@@ -278,7 +331,6 @@ const styles = StyleSheet.create({
     marginRight: 10,
     maxHeight: 200,
   },
-
   textInput: {
     flex: 1,
     fontSize: 16,
@@ -288,7 +340,6 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     overflow: "hidden",
   },
-
   micButton: {
     position: "absolute",
     right: 10,
