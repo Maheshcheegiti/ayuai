@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -13,6 +13,7 @@ import IconButtons from "../components/IconButtons";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../api";
 import endpoints from "../api/endpoint";
+import { useFocusEffect } from "@react-navigation/native";
 
 const ChatScreen = ({ navigation }) => {
   const [historyData, setHistoryData] = useState([]);
@@ -23,15 +24,16 @@ const ChatScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const response = await api(endpoints.CHAT_HISTORY, "GET");
-      console.log("History Data: ", response.data);
 
-      const formattedHistory = response.data.map((chat) => ({
-        id: chat.chat_id,
-        iconName: chat.chat_title.startsWith("Generate")
-          ? "document-text-outline"
-          : "chatbubble-ellipses-outline",
-        title: chat.chat_title,
-      }));
+      const formattedHistory = response.data
+        .map((chat) => ({
+          id: chat.chat_id,
+          iconName: chat.chat_title.startsWith("Generate")
+            ? "document-text-outline"
+            : "chatbubble-ellipses-outline",
+          title: chat.chat_title,
+        }))
+        .reverse();
 
       setHistoryData(formattedHistory);
     } catch (error) {
@@ -41,9 +43,11 @@ const ChatScreen = ({ navigation }) => {
     }
   };
 
-  useEffect(() => {
-    fetchHistoryData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchHistoryData();
+    }, [])
+  );
 
   const handleChat = (title = "New Conversation", chatId = null) => {
     if (typeof title !== "string") {

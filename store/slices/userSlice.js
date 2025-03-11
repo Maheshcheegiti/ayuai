@@ -3,6 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 const initialState = {
   userInfo: null,
   isLoggedIn: false,
+  mealplan: null,
 };
 
 const userSlice = createSlice({
@@ -17,9 +18,12 @@ const userSlice = createSlice({
       state.userInfo = null;
       state.isLoggedIn = false;
     },
+    setMealPlanner: (state, action) => {
+      state.mealplan = action.payload;
+    },
   },
 });
 
-export const { setUserInfo, logout } = userSlice.actions;
+export const { setUserInfo, logout, setMealPlanner } = userSlice.actions;
 
 export default userSlice.reducer;

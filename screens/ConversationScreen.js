@@ -17,6 +17,7 @@ import { api } from "../api";
 import endpoints from "../api/endpoint";
 import { getUserID } from "../utils";
 import { InteractionManager } from "react-native";
+import LoadingLogo from "../components/LoadingLogo";
 
 const ConversationScreen = ({ navigation, route }) => {
   const flatListRef = useRef(null);
@@ -118,8 +119,8 @@ const ConversationScreen = ({ navigation, route }) => {
   // Handle sending a new message
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
-
     setSending(true);
+
     const userMessage = {
       id: `user-${Date.now()}`,
       sender: "User",
@@ -127,8 +128,14 @@ const ConversationScreen = ({ navigation, route }) => {
       timestamp: new Date().toLocaleTimeString(),
     };
 
+    const tempAiMessageId = `ai-loading-${Date.now()}`;
+
     // Optimistically update UI
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      { id: tempAiMessageId, sender: "AyuAi", isLoading: true },
+    ]);
     setNewMessage("");
 
     try {
@@ -153,17 +160,22 @@ const ConversationScreen = ({ navigation, route }) => {
       });
 
       const aiMessage = {
-        id: `ai-${Date.now()}`,
+        id: tempAiMessageId,
         sender: "AyuAi",
         text: llmResponse.data.response.trim(),
         timestamp: new Date().toLocaleTimeString(),
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === tempAiMessageId ? aiMessage : msg))
+      );
 
-      // save AI response to backend
+      // Save AI response to backend
       await api(endpoints.CHAT, "POST", {
-        chat_message: { role: "assistant", message: llmResponse.data.response },
+        chat_message: {
+          role: "assistant",
+          message: llmResponse.data.response.trim(),
+        },
         super_tokens_id: superTokensId,
         chatId: currentChatId,
         chat_title: title,
@@ -172,14 +184,19 @@ const ConversationScreen = ({ navigation, route }) => {
       console.error("Message error:", error);
       Alert.alert("Error", "Failed to send message");
       // Rollback optimistic update on error
-      setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id));
+      setMessages((prev) =>
+        prev.filter(
+          (msg) => msg.id !== userMessage.id && msg.id !== tempAiMessageId
+        )
+      );
     } finally {
       setSending(false);
-      scrollToBottom(); // Improved scroll call
+      scrollToBottom();
     }
   };
 
   // Render each chat message
+  // Updated renderItem function
   const renderItem = ({ item }) => (
     <View
       style={[
@@ -187,19 +204,28 @@ const ConversationScreen = ({ navigation, route }) => {
         item.sender === "AyuAi" ? styles.ayuaiMessage : styles.userMessage,
       ]}
     >
-      <Pressable
-        style={[
-          styles.messageBubble,
-          item.sender === "AyuAi" ? styles.ayuaiBubble : styles.userBubble,
-        ]}
-        onLongPress={() => handleLongPress(item.id, item.sender)}
-      >
-        <Text style={styles.messageText}>{item.text}</Text>
-        <Text style={styles.timestamp}>{item.timestamp}</Text>
-      </Pressable>
+      {/* Loading logo container (outside message bubble) */}
+      {item.isLoading && item.sender === "AyuAi" && (
+        <View style={styles.loadingLogoWrapper}>
+          <LoadingLogo />
+        </View>
+      )}
+
+      {/* Message bubble (hidden during loading) */}
+      {!item.isLoading && (
+        <Pressable
+          style={[
+            styles.messageBubble,
+            item.sender === "AyuAi" ? styles.ayuaiBubble : styles.userBubble,
+          ]}
+          onLongPress={() => handleLongPress(item.id, item.sender)}
+        >
+          <Text style={styles.messageText}>{item.text}</Text>
+          <Text style={styles.timestamp}>{item.timestamp}</Text>
+        </Pressable>
+      )}
     </View>
   );
-
   return (
     <View style={[GlobalStyles.container, styles.container]}>
       {loading ? (
@@ -275,6 +301,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  loadingLogoContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
   },
   conversationContainer: {
     paddingBottom: 20,
