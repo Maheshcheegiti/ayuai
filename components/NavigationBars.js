@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import GlobalStyles from "./GlobalStyles";
 
+
 const NavigationBars = ({ navigationsData, style }) => {
   return (
     <View style={[GlobalStyles.glassContainer, styles.mainNavigations, style]}>

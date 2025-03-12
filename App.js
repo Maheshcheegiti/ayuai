@@ -8,6 +8,7 @@ import LoginScreen from "./screens/LoginScreen";
 import OtpScreen from "./screens/OtpScreen";
 import EditProfile from "./screens/EditProfile";
 import ConversationScreen from "./screens/ConversationScreen";
+import BlogPage from "./screens/BlogPage";
 import SuperTokens from "supertokens-react-native";
 import store from "./store";
 import { Provider } from "react-redux";
@@ -81,6 +82,21 @@ export default function App() {
               component={ConversationScreen}
               options={{
                 title: "Conversation",
+                headerStyle: {
+                  backgroundColor: "#040F15",
+                },
+                headerTintColor: "#32CA9A",
+                headerTitleStyle: {
+                  fontWeight: "bold",
+                },
+                animation: "slide_from_right",
+              }}
+            />
+            <Stack.Screen
+              name="Blog"
+              component={BlogPage}
+              options={{
+                title: "Blog",
                 headerStyle: {
                   backgroundColor: "#040F15",
                 },
