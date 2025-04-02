@@ -6,15 +6,24 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
+  LogBox,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import GlobalStyles from "../components/GlobalStyles";
-import HTML from "react-native-render-html";
+import RenderHtml from "react-native-render-html";
+
+LogBox.ignoreLogs([/Support for defaultProps will be removed/]);
 
 const BlogPage = ({ navigation, route }) => {
   const { title, image, content } = route.params;
   const [likedBlogs, setLikedBlogs] = useState([]);
   const [bookmarkedBlogs, setBookmarkedBlogs] = useState([]);
+  const { width } = useWindowDimensions();
+
+  const source = {
+    html: content,
+  };
 
   const handleLike = (id) => {
     setLikedBlogs((prev) =>
@@ -74,9 +83,9 @@ const BlogPage = ({ navigation, route }) => {
       {/* Content Section */}
       <View style={styles.contentContainer}>
         <Text style={styles.title}>{title}</Text>
-        <HTML
-          source={{ html: content }}
-          contentWidth={300}
+        <RenderHtml
+          contentWidth={width}
+          source={source}
           baseStyle={styles.contentText}
         />
       </View>

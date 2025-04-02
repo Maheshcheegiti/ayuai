@@ -17,16 +17,29 @@ import { api } from "../api";
 import endpoints from "../api/endpoint";
 import { getUserID } from "../utils";
 import { InteractionManager } from "react-native";
-import LoadingLogo from "../components/LoadingLogo";
+import * as FileSystem from "expo-file-system";
+import { getOrRequestDownloadUri } from "../utils/storageHelper";
+import { generateHealthReportPdf } from "../utils/pdfHelper";
+import * as IntentLauncher from "expo-intent-launcher"; // Only works on Android
+import ChatBubble from "./ChatBubble";
+import { CameraView } from "expo-camera";
+import { formatToGTIN13 } from "../utils/barcodeHelper";
 
 const ConversationScreen = ({ navigation, route }) => {
   const flatListRef = useRef(null);
-  const { title, chatId } = route.params;
+  const { title, chatId: initialChatId } = route.params;
+  const [chatId, setChatId] = useState(initialChatId);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [reportGenerated, setReportGenerated] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [scanned, setScanned] = useState(false);
+
+  // clientid 5ac51e894ea04abf8b282dbce573101d
+  // clinetsecret 67a2a6da8792492da88ac2dc2c85a5dc
 
   // Fetch chat history when the screen loads
   // In fetchChatHistory function
@@ -64,8 +77,93 @@ const ConversationScreen = ({ navigation, route }) => {
     }
   };
 
+  const generateHealthReport = async () => {
+    const tempMessageId = `report-loading-${Date.now()}`;
+    const loadingMessage = {
+      id: tempMessageId,
+      sender: "AyuAi",
+      isLoading: true,
+    };
+
+    setMessages((prev) => [...prev, loadingMessage]);
+
+    try {
+      const response = await api(endpoints.HEALTH_REPORT, "GET");
+      const report = response.data?.report?.trim();
+
+      if (report) {
+        const { uri, fileName } = await generateHealthReportPdf(report);
+
+        const fileMessage = {
+          id: `pdf-${Date.now()}`,
+          sender: "AyuAi",
+          isPdf: true,
+          fileName,
+          fileUri: uri,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === tempMessageId ? fileMessage : msg))
+        );
+      } else {
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempMessageId));
+      }
+    } catch (err) {
+      console.error("Health report generation failed", err);
+      Alert.alert("Error", "Failed to generate health report");
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempMessageId));
+    } finally {
+      setReportGenerated(true);
+    }
+  };
+
+  const handleOpenPdf = async (fileUri) => {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const fileName = fileUri.split("/").pop();
+      const mimeType = "application/pdf"; // or use Mime.lookup(fileName) if needed
+
+      const dirUri = await getOrRequestDownloadUri();
+      const newFileUri =
+        await FileSystem.StorageAccessFramework.createFileAsync(
+          dirUri,
+          fileName,
+          mimeType
+        );
+
+      await FileSystem.writeAsStringAsync(newFileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // 🚀 Launch the system's "Open with..." dialog
+      IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        data: newFileUri,
+        flags: 1,
+        type: mimeType,
+      });
+    } catch (err) {
+      console.error("File open error:", err);
+      Alert.alert("Error", "Failed to save or open the PDF");
+    }
+  };
+
   useEffect(() => {
-    fetchChatHistory();
+    const initialize = async () => {
+      setLoading(true);
+      await fetchChatHistory();
+
+      if (title === "Generate Health Report" && !reportGenerated) {
+        await generateHealthReport();
+      }
+
+      setLoading(false);
+    };
+
+    initialize();
   }, [chatId]);
 
   const scrollToBottom = () => {
@@ -116,7 +214,6 @@ const ConversationScreen = ({ navigation, route }) => {
     }
   };
 
-  // Handle sending a new message
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
     setSending(true);
@@ -130,7 +227,6 @@ const ConversationScreen = ({ navigation, route }) => {
 
     const tempAiMessageId = `ai-loading-${Date.now()}`;
 
-    // Optimistically update UI
     setMessages((prev) => [
       ...prev,
       userMessage,
@@ -140,19 +236,25 @@ const ConversationScreen = ({ navigation, route }) => {
 
     try {
       const superTokensId = await getUserID();
+
+      const isNewChat = !chatId;
       const chatPayload = {
         chat_message: { role: "user", message: newMessage.trim() },
         super_tokens_id: superTokensId,
-        newchat: !chatId,
+        newchat: isNewChat,
         chatId,
         chat_title: title,
       };
 
-      // Save message to backend
       const saveResponse = await api(endpoints.CHAT, "POST", chatPayload);
       const currentChatId = saveResponse.data.chat_id || chatId;
 
-      // Get AI response
+      // 👇 Fix: update chatId immediately for future messages
+      if (!chatId) {
+        setChatId(currentChatId);
+      }
+
+      // Fetch AI response
       const llmResponse = await api(endpoints.GET_LLM_RESPONSE, "POST", {
         question: newMessage.trim(),
         super_tokens_id: superTokensId,
@@ -166,11 +268,22 @@ const ConversationScreen = ({ navigation, route }) => {
         timestamp: new Date().toLocaleTimeString(),
       };
 
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === tempAiMessageId ? aiMessage : msg))
-      );
+      console.log("Ai message:", aiMessage);
 
-      // Save AI response to backend
+      // 👇 Fix: update UI immediately with AI response
+      setMessages((prev) => {
+        const updated = prev.map((msg) =>
+          msg.id === tempAiMessageId ? aiMessage : msg
+        );
+        const hasUpdated = updated.find((msg) => msg.id === aiMessage.id);
+        return hasUpdated ? updated : [...prev, aiMessage]; // fallback
+      });
+
+      console.log("Messages after AI response:", messages);
+
+      console.log("Chat ID:", currentChatId);
+
+      // Save AI message to backend
       await api(endpoints.CHAT, "POST", {
         chat_message: {
           role: "assistant",
@@ -183,7 +296,6 @@ const ConversationScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error("Message error:", error);
       Alert.alert("Error", "Failed to send message");
-      // Rollback optimistic update on error
       setMessages((prev) =>
         prev.filter(
           (msg) => msg.id !== userMessage.id && msg.id !== tempAiMessageId
@@ -195,39 +307,77 @@ const ConversationScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleBarcodeScanned = async ({ data }) => {
+    setScanned(true);
+    setShowCamera(false);
+
+    const formattedBarcode = formatToGTIN13(data);
+    const tempId = `barcode-loading-${Date.now()}`;
+
+    const loadingMessage = {
+      id: tempId,
+      sender: "AyuAi",
+      isLoading: true,
+    };
+
+    setMessages((prev) => [...prev, loadingMessage]);
+
+    try {
+      console.log("Scanned barcode:", formattedBarcode);
+      const response = await api(endpoints.ANALYZE_BARCODE, "POST", {
+        barcode: formattedBarcode,
+      });
+
+      const resultText = response.data?.analysis?.trim();
+
+      const aiMessage = {
+        id: `ai-barcode-${Date.now()}`,
+        sender: "AyuAi",
+        text: resultText || "Couldn't interpret the barcode properly.",
+        timestamp: new Date().toLocaleTimeString(),
+      };
+
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === tempId ? aiMessage : msg))
+      );
+    } catch (error) {
+      console.error("Barcode analysis failed:", error);
+      Alert.alert("Error", "Failed to analyze barcode");
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+    } finally {
+      // 🔁 Allow future scans again after short delay
+      setTimeout(() => setScanned(false), 1000);
+    }
+  };
+
   // Render each chat message
   // Updated renderItem function
   const renderItem = ({ item }) => (
-    <View
-      style={[
-        styles.messageContainer,
-        item.sender === "AyuAi" ? styles.ayuaiMessage : styles.userMessage,
-      ]}
-    >
-      {/* Loading logo container (outside message bubble) */}
-      {item.isLoading && item.sender === "AyuAi" && (
-        <View style={styles.loadingLogoWrapper}>
-          <LoadingLogo />
-        </View>
-      )}
-
-      {/* Message bubble (hidden during loading) */}
-      {!item.isLoading && (
-        <Pressable
-          style={[
-            styles.messageBubble,
-            item.sender === "AyuAi" ? styles.ayuaiBubble : styles.userBubble,
-          ]}
-          onLongPress={() => handleLongPress(item.id, item.sender)}
-        >
-          <Text style={styles.messageText}>{item.text}</Text>
-          <Text style={styles.timestamp}>{item.timestamp}</Text>
-        </Pressable>
-      )}
-    </View>
+    <ChatBubble
+      item={item}
+      handleLongPress={handleLongPress}
+      handleOpenPdf={handleOpenPdf}
+    />
   );
+
   return (
     <View style={[GlobalStyles.container, styles.container]}>
+      {showCamera && (
+        <CameraView
+          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ["ean13", "ean8", "ean12"],
+          }}
+          style={{
+            width: "100%",
+            height: 250,
+            borderRadius: 10,
+            marginBottom: 10,
+            overflow: "hidden",
+          }}
+        />
+      )}
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#32CA9A" />
@@ -253,8 +403,11 @@ const ConversationScreen = ({ navigation, route }) => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.inputContainer}
       >
-        <Pressable onPress={() => {}} style={styles.actionButton}>
-          <Ionicons name="attach-outline" size={24} color="#32CA9A" />
+        <Pressable
+          onPress={() => setShowCamera(true)}
+          style={styles.actionButton}
+        >
+          <Ionicons name="barcode-outline" size={24} color="#32CA9A" />
         </Pressable>
 
         <View style={styles.textInputContainer}>
@@ -310,42 +463,7 @@ const styles = StyleSheet.create({
   conversationContainer: {
     paddingBottom: 20,
   },
-  messageContainer: {
-    flexDirection: "row",
-    marginBottom: 15,
-  },
-  ayuaiMessage: {
-    justifyContent: "flex-start",
-  },
-  userMessage: {
-    justifyContent: "flex-end",
-  },
-  messageBubble: {
-    borderRadius: 10,
-    padding: 10,
-    maxWidth: "70%",
-    backdropFilter: "blur(10px)",
-  },
-  ayuaiBubble: {
-    backgroundColor: "#FFFFFF22",
-    borderWidth: 1,
-    borderColor: "#FFFFFFAA",
-  },
-  userBubble: {
-    backgroundColor: "#32CA9A22",
-    borderColor: "#32CA9AAA",
-    borderWidth: 1,
-  },
-  messageText: {
-    color: "#FFF",
-    fontSize: 16,
-  },
-  timestamp: {
-    color: "#FFFFFF55",
-    fontSize: 12,
-    marginTop: 5,
-    alignSelf: "flex-end",
-  },
+
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",

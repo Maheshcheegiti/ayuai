@@ -49,16 +49,28 @@ const ChatScreen = ({ navigation }) => {
     }, [])
   );
 
-  const handleChat = (title = "New Conversation", chatId = null) => {
-    if (typeof title !== "string") {
-      title = "New Conversation";
-    }
+  const handleChat = (
+    title = "New Conversation",
+    chatId = null,
+    healthReport = false
+  ) => {
+    if (healthReport) {
+      navigation.navigate("Conversation", {
+        title: "Generate Health Report",
+        chatId: null,
+        superTokensId: "user-super-tokens-id", // Replace with actual superTokensId
+      });
+    } else {
+      if (typeof title !== "string") {
+        title = "New Conversation";
+      }
 
-    navigation.navigate("Conversation", {
-      title: title,
-      chatId: chatId,
-      superTokensId: "user-super-tokens-id", // Replace with actual superTokensId
-    });
+      navigation.navigate("Conversation", {
+        title: title,
+        chatId: chatId,
+        superTokensId: "user-super-tokens-id", // Replace with actual superTokensId
+      });
+    }
   };
 
   const renderHistoryItem = ({ item }) => {
@@ -106,12 +118,12 @@ const ChatScreen = ({ navigation }) => {
         <IconButtons
           iconName="chatbubble-ellipses-outline"
           text="Chat with AyuAi to get instant health insights"
-          onPress={handleChat}
+          onPress={() => handleChat("New Conversation", null, false)}
         />
         <IconButtons
           iconName="document-text-outline"
           text="Generate Health Report and Export"
-          onPress={handleChat}
+          onPress={() => handleChat(null, null, true)}
         />
       </View>
       <Text style={GlobalStyles.primaryHeading}>History</Text>
